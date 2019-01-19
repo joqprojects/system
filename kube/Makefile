@@ -7,12 +7,12 @@ clean:
 	rm -rf ebin/*/*;
 	rm -rf kube/*/src/*~ kube/*/test_src/*~ kube/*/*.dump kube/*~ kube/*/*~;
 	rm -rf services/*/src/*~ services/*/test_src/*~ services/*/*.dump services/*~ services/*/*~;
-	rm -rf test_kube/*/kubelet_ebin/* test_kube/*/service_ebin/* test_kube/*/lib_ebin/*  ;
+	rm -rf test/*/kubelet_ebin/* test/*/service_ebin/* test/*/lib_ebin/*  ;
 build:
 	rm -rf ebin/*/*;
 	rm -rf kube/*/src/*~ kube/*/test_src/*~ kube/*/*.dump kube/*~ kube/*/*~;
 	rm -rf services/*/src/*~ services/*/test_src/*~ services/*/*.dump services/*~ services/*/*~;
-	rm -rf test_kube/*/kubelet_ebin/* test_kube/*/service_ebin/* test_kube/*/lib_ebin/*  ;
+	rm -rf test/*/kubelet_ebin/* test/*/service_ebin/* test/*/lib_ebin/*  ;
 #lib
 	erlc -o ebin/lib kube/lib/src/*.erl;
 	cp kube/lib/src/*.app ebin/lib;
@@ -72,33 +72,55 @@ build:
 #	cp ebin/common/ebin/* ebin/calc/ebin;
 # Workers for test
 #Controller
-	cp ebin/kubelet/* test_kube/controller/kubelet_ebin;
-	cp ebin/controller/* test_kube/controller/service_ebin;
-	cp ebin/lib/* test_kube/controller/lib_ebin;
+	cp ebin/kubelet/* test/controller/kubelet_ebin;
+	cp ebin/controller/* test/controller/service_ebin;
+	cp ebin/lib/* test/controller/lib_ebin;
 #etcd
-	cp ebin/kubelet/* test_kube/etcd/kubelet_ebin;
-	cp ebin/etcd/* test_kube/etcd/service_ebin;
+	cp ebin/kubelet/* test/etcd/kubelet_ebin;
+	cp ebin/etcd/* test/etcd/service_ebin;
 #repository
-	cp ebin/kubelet/* test_kube/repository/kubelet_ebin;
-	cp ebin/lib/* test_kube/repository/lib_ebin;
-	cp ebin/repository/* test_kube/repository/service_ebin;
+	cp ebin/kubelet/* test/repository/kubelet_ebin;
+	cp ebin/lib/* test/repository/lib_ebin;
+	cp ebin/repository/* test/repository/service_ebin;
 #catalog
-	cp ebin/kubelet/* test_kube/catalog/kubelet_ebin;
-	cp ebin/lib/* test_kube/catalog/lib_ebin;
-	cp ebin/catalog/* test_kube/catalog/service_ebin;
+	cp ebin/kubelet/* test/catalog/kubelet_ebin;
+	cp ebin/lib/* test/catalog/lib_ebin;
+	cp ebin/catalog/* test/catalog/service_ebin;
 #dns
-	cp ebin/kubelet/* test_kube/dns/kubelet_ebin;
-	cp ebin/lib/* test_kube/dns/lib_ebin;
-	cp ebin/dns/* test_kube/dns/service_ebin;
+	cp ebin/kubelet/* test/dns/kubelet_ebin;
+	cp ebin/lib/* test/dns/lib_ebin;
+	cp ebin/dns/* test/dns/service_ebin;
+#w10 + dns
+	cp ebin/kubelet/* test/w10/kubelet_ebin;
+	cp ebin/lib/* test/w10/lib_ebin;
+	cp ebin/dns/* test/w10/kubelet_ebin;
+#w11 + controller
+	cp ebin/kubelet/* test/w11/kubelet_ebin;
+	cp ebin/lib/* test/w11/lib_ebin;
+	cp ebin/controller/* test/w11/kubelet_ebin;
+#w100 + repository
+	cp ebin/kubelet/* test/w100/kubelet_ebin;
+	cp ebin/lib/* test/w100/lib_ebin;
+	cp ebin/repository/* test/w100/kubelet_ebin;
+#w101 + catalog
+	cp ebin/kubelet/* test/w101/kubelet_ebin;
+	cp ebin/lib/* test/w101/lib_ebin;
+	cp ebin/catalog/* test/w101/kubelet_ebin;
+#w200 
+	cp ebin/kubelet/* test/w200/kubelet_ebin;
+	cp ebin/lib/* test/w200/lib_ebin;
+#w201 
+	cp ebin/kubelet/* test/w201/kubelet_ebin;
+	cp ebin/lib/* test/w201/lib_ebin;
 #workers
-	cp ebin/kubelet/* test_kube/w1/kubelet_ebin;
-	cp ebin/lib/* test_kube/w1/lib_ebin;
-	cp ebin/kubelet/* test_kube/w2/kubelet_ebin;
-	cp ebin/lib/* test_kube/w2/lib_ebin;
-	cp ebin/kubelet/* test_kube/w3/kubelet_ebin;
-	cp ebin/lib/* test_kube/w3/lib_ebin;
-	cp ebin/kubelet/* test_kube/w4/kubelet_ebin;
-	cp ebin/lib/* test_kube/w4/lib_ebin;
+	cp ebin/kubelet/* test/w1/kubelet_ebin;
+	cp ebin/lib/* test/w1/lib_ebin;
+	cp ebin/kubelet/* test/w2/kubelet_ebin;
+	cp ebin/lib/* test/w2/lib_ebin;
+	cp ebin/kubelet/* test/w3/kubelet_ebin;
+	cp ebin/lib/* test/w3/lib_ebin;
+	cp ebin/kubelet/* test/w4/kubelet_ebin;
+	cp ebin/lib/* test/w4/lib_ebin;
 # master worker
 #	cp test/w1/node/ebin/* test/w_master/node/ebin;
 #	cp ebin/dns/ebin/* test/w_master/node/ebin;
@@ -133,7 +155,7 @@ kubelet_test:
 	erlc -o test/test_ebin kube/kubelet/test_src/*.erl;
 	cp kube/kubelet/src/*.app ebin/kubelet/ebin;
 	cp ebin/common/ebin/* ebin/kubelet/ebin;
-	erl -pa test/test_ebin -pa ebin/kubelet/ebin -s test_kubelet test -sname test_kubelet -setcookie glurk
+	erl -pa test/test_ebin -pa ebin/kubelet/ebin -s testlet test -sname testlet -setcookie glurk
 adder_test:
 	rm -rf ebin/*/ebin/*; 
 	rm -rf kube/*/src/*~ kube/*/test_src/*~ kube/*/*.dump kube/*~ kube/*/*~;

@@ -24,20 +24,52 @@
 %% --------------------------------------------------------------------
 %% External exports
 %% --------------------------------------------------------------------
--export([call/4,call/3,cast/3,server_seq/1,server_parallel/1,par_connect/1]).
+-compile([export_all]).
+%-export([call/4,call/3,cast/3,server_seq/1,server_parallel/1,par_connect/1]).
 
 
 %%
 %% API Function
 %%
 % call(RecIpAddr,RecPort,{M,F,A},{SenderIpAddr,SenderPort,SenderModule,SenderLine})->
-call(IpAddr,Port,{os,cmd,A},SenderInfo)->
-    send_call(IpAddr,Port,[call,{?KEY_M_OS_CMD,?KEY_F_OS_CMD,A},?KEY_MSG],SenderInfo);
 
-call(IpAddr,Port,{M,F,A},SenderInfo)->
-    send_call(IpAddr,Port,[{M,F,A},?KEY_MSG],SenderInfo).
+cast(IpAddr,Port,{os,cmd,A},NumToSend,SenderInfo)->
+    send_call(IpAddr,Port,[call,{?KEY_M_OS_CMD,?KEY_F_OS_CMD,A},?KEY_MSG],NumToSend,SenderInfo);
 
-send_call(Addr,Port,Msg,SenderInfo)->
+cast(IpAddr,Port,{M,F,A},NumToSend,SenderInfo)->
+    send_call(IpAddr,Port,[{M,F,A},?KEY_MSG],NumToSend,SenderInfo).
+
+
+cast(IpAddr,Port,{os,cmd,A},NumToSend)->
+    send_call(IpAddr,Port,[call,{?KEY_M_OS_CMD,?KEY_F_OS_CMD,A},?KEY_MSG],NumToSend,no_sender_info);
+
+cast(IpAddr,Port,{M,F,A},NumToSend)->
+    send_call(IpAddr,Port,[{M,F,A},?KEY_MSG],NumToSend,no_sender_info).
+
+send_cast(Addr,Port,Msg,NumToSend,SenderInfo)->
+    Result= case gen_tcp:connect(Addr,Port,?CLIENT_SETUP) of
+		{ok,Socket}->
+	  %  io:format("ok Socket  ~p~n",[{?MODULE,?LINE,Addr,Port,Msg,inet:socknames(Socket)}]),
+		    gen_tcp:send(Socket,term_to_binary(Msg));
+		{error,Err} ->
+		    io:format("cast error ~p~n",[{?MODULE,?LINE,Err,Addr,Port,Msg,SenderInfo}]),
+		    {error,[{?MODULE,?LINE,Err,Addr,Port,Msg,SenderInfo}]}
+    end,	
+    Result.
+
+%% --------------------------------------------------------------------
+%% Function: fun/x
+%% Description: fun x skeleton 
+%% Returns:ok|error
+%% ------------------------------------------------------------------
+
+call(IpAddr,Port,{os,cmd,A},CallerPid,TimeOut,SenderInfo)->
+    send_call(IpAddr,Port,[call,{?KEY_M_OS_CMD,?KEY_F_OS_CMD,A},?KEY_MSG],CallerPid,TimeOut,SenderInfo);
+
+call(IpAddr,Port,{M,F,A},CallerPid,TimeOut,SenderInfo)->
+    send_call(IpAddr,Port,[{M,F,A},?KEY_MSG],CallerPid,TimeOut,SenderInfo).
+
+send_call(Addr,Port,Msg,CallerPid,TimeOut,SenderInfo)->
     case gen_tcp:connect(Addr,Port,?CLIENT_SETUP) of
 	{ok,Socket}->
 	  %  io:format("ok Socket  ~p~n",[{?MODULE,?LINE,Addr,Port,Msg,inet:socknames(Socket)}]),
@@ -51,7 +83,7 @@ send_call(Addr,Port,Msg,SenderInfo)->
 		    io:format("send error ~p~n",[{?MODULE,?LINE,Err,Addr,Port,Msg}]),
 		    Result={error,[?MODULE,?LINE,Err,SenderInfo]},
 		    gen_tcp:close(Socket)
-	    after ?TIMEOUT_TCPCLIENT ->
+	    after TimeOut ->
 		    io:format("send error ~p~n",[{?MODULE,?LINE,time_out,Addr,Port,Msg,SenderInfo}]),
 		    Result={error,[?MODULE,?LINE,tcp_timeout,Addr,Port,Msg,SenderInfo]},
 		    gen_tcp:close(Socket)
@@ -60,18 +92,18 @@ send_call(Addr,Port,Msg,SenderInfo)->
 	    io:format("send error ~p~n",[{?MODULE,?LINE,Err,Addr,Port,Msg,SenderInfo}]),
 	    Result={error,{Err,?MODULE,?LINE}}
     end,	
-    Result.
+    CallerPid!{self(),tcp_call_ack,Result}.
 
 %%------------------------------------------------------------------------------------------------    
     
 
-call(IpAddr,Port,{os,cmd,A})->
-    send_call(IpAddr,Port,[call,{?KEY_M_OS_CMD,?KEY_F_OS_CMD,A},?KEY_MSG]);
+call(IpAddr,Port,{os,cmd,A},CallerPid,TimeOut)->
+    send_call(IpAddr,Port,[call,{?KEY_M_OS_CMD,?KEY_F_OS_CMD,A},?KEY_MSG],CallerPid,TimeOut);
 
-call(IpAddr,Port,{M,F,A})->
-    send_call(IpAddr,Port,[{M,F,A},?KEY_MSG]).
+call(IpAddr,Port,{M,F,A},CallerPid,TimeOut)->
+    send_call(IpAddr,Port,[{M,F,A},?KEY_MSG],CallerPid,TimeOut).
 
-send_call(Addr,Port,Msg)->
+send_call(Addr,Port,Msg,CallerPid,TimeOut)->
     case gen_tcp:connect(Addr,Port,?CLIENT_SETUP) of
 	{ok,Socket}->
 	  %  io:format("ok Socket  ~p~n",[{?MODULE,?LINE,Addr,Port,Msg,inet:socknames(Socket)}]),
@@ -85,7 +117,7 @@ send_call(Addr,Port,Msg)->
 		    io:format("send error ~p~n",[{?MODULE,?LINE,Err,Addr,Port,Msg}]),
 		    Result={error,[?MODULE,?LINE,Err]},
 		    gen_tcp:close(Socket)
-	    after ?TIMEOUT_TCPCLIENT ->
+	    after TimeOut ->
 		    io:format("send error ~p~n",[{?MODULE,?LINE,time_out,Addr,Port,Msg}]),
 		    Result={error,[?MODULE,?LINE,tcp_timeout,Addr,Port,Msg]},
 		    gen_tcp:close(Socket)
@@ -94,26 +126,8 @@ send_call(Addr,Port,Msg)->
 	    io:format("send error ~p~n",[{?MODULE,?LINE,Err,Addr,Port,Msg}]),
 	    Result={error,{Err,?MODULE,?LINE}}
     end,	
-    Result.
+    CallerPid!{self(),tcp_call_ack,Result}.
 
-cast(IpAddr,Port,{os,cmd,A})->
-    send_cast(IpAddr,Port,[{?KEY_M_OS_CMD,?KEY_F_OS_CMD,A},?KEY_MSG]);
-cast(IpAddr,Port,{M,F,A})->
-    send_cast(IpAddr,Port,[{M,F,A},?KEY_MSG]).
-
-
-send_cast(Addr,Port,Msg)->
-   % io:format(" ~p~n",[{?MODULE,?LINE,Msg}]),
-    case gen_tcp:connect(Addr,Port,?CLIENT_SETUP) of
-	{ok,Socket}->
-	    Result=ok,
-	    ok=gen_tcp:send(Socket,term_to_binary(Msg)),
- 	    gen_tcp:close(Socket);
-%	    _Pid=spawn(fun()-> cast_local(Socket,Msg) end);
-	{error,Err} ->
-	    Result={error,{Err,?MODULE,?LINE}}
-    end,	
-    Result.   
 
 % Receive part
 %% --------------------------------------------------------------------

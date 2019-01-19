@@ -12,5 +12,5 @@
 	   zone=["house.room"],
 	   capabilities=[]	   
 	 }).
--define(SERVICE_EBIN,"service_ebin").
--define(KUBELET_EBIN,"kubelet_ebin").
+%-define(SERVICE_EBIN,"service_ebin").
+%-define(KUBELET_EBIN,"kubelet_ebin").
