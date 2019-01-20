@@ -10,7 +10,7 @@
 %% --------------------------------------------------------------------
 %% Include files1
 %% --------------------------------------------------------------------
-
+-include("kube/controller/src/controller_local.hrl").
 %% --------------------------------------------------------------------
 %% External exports
 -compile(export_all).
@@ -103,12 +103,15 @@ dependencies(I)->
 %% --------------------------------------------------------------------------
 
 
-start_order(Name,Vsn)->
+start_order(Name,Vsn,State)->
   %  io:format("~p~n",[{?MODULE,?LINE,Name,Vsn}]),
-    Result=case if_dns:call("catalog",catalog,read,[Name,Vsn]) of
-	       {error,Err}->
+    {dns,DnsIp,DnsPort}=State#state.dns_addr,
+    R= if_dns:call([{service,"catalog",latest},{mfa,catalog,read,[Name,Vsn]},
+		    {dns,DnsIp,DnsPort},{num_to_send,1},{num_to_rec,1},{timeout,10*1000}]),
+    Result=case R of
+	       [{error,Err}]->
 		   {error,[?MODULE,?LINE,Err]};
-	       {ok,_,JoscaInfo}->
+	       {ok,[{ok,_,JoscaInfo}]}->
 		   Acc=case lists:keyfind(type,1,JoscaInfo) of 
 			   {type,application}->
 			       [];
@@ -119,32 +122,35 @@ start_order(Name,Vsn)->
 		  % io:format("~p~n",[{?MODULE,?LINE,Acc}]),
 		   {dependencies,JoscaFiles}=lists:keyfind(dependencies,1,JoscaInfo),
 		  % io:format("~p~n",[{?MODULE,?LINE,JoscaFiles}]),
-		   dfs(JoscaFiles,Acc)
+		   dfs(JoscaFiles,State,Acc)
 	   end,
     Result.
 
 
-dfs([],Acc)->
+dfs([],_,Acc)->
     Acc;
-dfs([{Name,Vsn}|T],Acc)->
+dfs([{Name,Vsn}|T],State,Acc)->
     io:format("~p~n",[{?MODULE,?LINE,Name,Vsn,Acc}]),    
-    case if_dns:call("catalog",catalog,read,[Name,Vsn]) of
-	{error,Err}->
-	    JoscaFiles=[],
-	    Acc1=Acc,
-	    [{error,[?MODULE,?LINE,Err]}|Acc];
-	{ok,_,JoscaInfo}->
-	    case lists:keyfind(type,1,JoscaInfo) of 
-		{type,application}->
-		    Acc1=Acc;
-		{type,service} ->
-		    {exported_services,[{ServiceId,VsnService}]}=lists:keyfind(exported_services,1,JoscaInfo),
-			 Acc1=[{ServiceId,VsnService}|Acc]
-	    end,
-	    {dependencies,JoscaFiles}=lists:keyfind(dependencies,1,JoscaInfo)
-    end,
-    Acc2=dfs(JoscaFiles,Acc1),
+    {dns,DnsIp,DnsPort}=State#state.dns_addr,
+    R= if_dns:call([{service,"catalog",latest},{mfa,catalog,read,[Name,Vsn]},
+		    {dns,DnsIp,DnsPort},{num_to_send,1},{num_to_rec,1},{timeout,10*1000}]),
+    Result=case R of
+	       [{error,Err}]->
+		   JoscaFiles=[],
+		   Acc1=Acc,
+		   [{error,[?MODULE,?LINE,Err]}|Acc];
+	       {ok,[{ok,_,JoscaInfo}]}->
+		   case lists:keyfind(type,1,JoscaInfo) of 
+		       {type,application}->
+			   Acc1=Acc;
+		       {type,service} ->
+			   {exported_services,[{ServiceId,VsnService}]}=lists:keyfind(exported_services,1,JoscaInfo),
+			   Acc1=[{ServiceId,VsnService}|Acc]
+		   end,
+		   {dependencies,JoscaFiles}=lists:keyfind(dependencies,1,JoscaInfo)
+	   end,
+    Acc2=dfs(JoscaFiles,State,Acc1),
     io:format("~p~n",[{?MODULE,?LINE,Acc2}]),
-    dfs(T,Acc2).
+    dfs(T,State,Acc2).
 
 %%-----------------------------------------------------------------------------

@@ -11,6 +11,8 @@
 %% --------------------------------------------------------------------
 %% Include files
 %% --------------------------------------------------------------------
+-include("kube/catalog/src/catalog_local.hrl").
+
 -include("kube/include/repository_data.hrl").
 -include("kube/include/dns_data.hrl").
 -include("kube/include/dns.hrl").
@@ -23,7 +25,7 @@
 %% --------------------------------------------------------------------
 %% Data structures
 %% --------------------------------------------------------------------
--record(state, {dns_info,dbase_id}).
+
 
 %% --------------------------------------------------------------------
 
@@ -86,12 +88,12 @@ init([]) ->
     DbaseId="storage/glurk_catalog.dbase",
     dbase_dets:create_dbase(Type,DbaseId),
 %--- just for test'    
-    init_glurk([{"adder","../../ebin/adder_100/ebin"},
-		{"divider","../../ebin/divider_100/ebin"},
-		{"subtract","../../ebin/subtract_100/ebin"},
-		{"multi","../../ebin/multi_100/ebin"},
-	        {"lib","../../ebin/lib/ebin"},
-		{"controller","../../ebin/controller/ebin"},
+    init_glurk([{"adder","../../ebin/adder_100"},
+		{"divider","../../ebin/divider_100"},
+		{"subtract","../../ebin/subtract_100"},
+		{"multi","../../ebin/multi_100"},
+	        {"lib","../../ebin/lib"},
+		{"controller","../../ebin/controller"},
 		{"app_adder","../../applications"},
 		{"app_divider","../../applications"},
 		{"app_subtract","../../applications"},
@@ -105,19 +107,23 @@ init([]) ->
     {ok,Port}=application:get_env(port),
     {ok,ServiceId}=application:get_env(service_id),
     {ok,Vsn}=application:get_env(vsn),
+    {ok,DnsIp}=application:get_env(dns_ip_addr),
+    {ok,DnsPort}=application:get_env(dns_port),
+
     DnsInfo=#dns_info{time_stamp="not_initiaded_time_stamp",
 			service_id = ServiceId,
 			vsn = Vsn,
 			ip_addr=MyIp,
 			port=Port
 		       },
- %   io:format("~p~n",[{?MODULE,?LINE,DnsInfo}]),
-    rpc:cast(node(),if_dns,call,["dns",dns,dns_register,[DnsInfo]]),
-    rpc:cast(node(),if_dns,call,["controller",controller,dns_register,[DnsInfo]]),
+    if_dns:cast([{service,"dns",latest},{mfa,dns,dns_register,[DnsInfo]},
+		 {dns,DnsIp,DnsPort},{num_to_send,1}]),
+    if_dns:cast([{service,"controller",latest},{mfa,controller,dns_register,[DnsInfo]},
+		 {dns,DnsIp,DnsPort},{num_to_send,1}]),
     rpc:cast(node(),kubelet,dns_register,[DnsInfo]),
     spawn(fun()-> local_heart_beat(?HEARTBEAT_INTERVAL) end), 
     io:format("~p~n",[{?MODULE,'  started ', ?LINE}]),
-    {ok, #state{dns_info=DnsInfo,dbase_id=DbaseId}}. 
+    {ok, #state{dbase_id=DbaseId,dns_info=DnsInfo,dns_addr={dns,DnsIp,DnsPort}}}. 
 
 %% --------------------------------------------------------------------
 %% Function: handle_call/3
@@ -152,9 +158,11 @@ handle_call({delete,Name,Vsn}, _From, State) ->
 
 handle_call({heart_beat}, _From, State) ->
     DnsInfo=State#state.dns_info,
-  %  io:format(" ~p~n",[{?MODULE,?LINE,DnsInfo}]),
-    rpc:cast(node(),if_dns,call,["dns",dns,dns_register,[DnsInfo]]),
-    rpc:cast(node(),if_dns,call,["controller",controller,dns_register,[DnsInfo]]),
+    {dns,DnsIp,DnsPort}=State#state.dns_addr,
+    if_dns:cast([{service,"dns",latest},{mfa,dns,dns_register,[DnsInfo]},
+		 {dns,DnsIp,DnsPort},{num_to_send,1}]),
+    if_dns:cast([{service,"controller",latest},{mfa,controller,dns_register,[DnsInfo]},
+		 {dns,DnsIp,DnsPort},{num_to_send,1}]),
     rpc:cast(node(),kubelet,dns_register,[DnsInfo]),
    % if_dns:call("contoller",controller,controller_register,[DnsInfo]),
     Reply=ok,

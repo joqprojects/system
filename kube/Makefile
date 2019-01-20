@@ -2,7 +2,7 @@
 system:
 	rm -rf test_ebin/* test_src/*~;
 	erlc -o test_ebin test_src/*.erl;
-	erl -pa test_ebin -pa ebin/lib/ebin -s test_system test -sname test_system;
+	erl -pa test_ebin -pa ebin/lib -sname test_system;
 clean:
 	rm -rf ebin/*/*;
 	rm -rf kube/*/src/*~ kube/*/test_src/*~ kube/*/*.dump kube/*~ kube/*/*~;
@@ -146,16 +146,17 @@ dns_test:
 	cp ebin/common/ebin/* ebin/dns/ebin;
 	erl -pa test/test_ebin -pa ebin/dns/ebin -s test_dns test -sname test_dns -setcookie glurk
 kubelet_test:
-	rm -rf ebin/*/ebin/*; 
-	rm -rf kube/*/src/*~ kube/*/test_src/*~ kube/*/*.dump kube/*~ kube/*/*~;
-#	rm -rf test/*//*.dump  test/*/nfvi/ebin/* test/test_ebin/* test/*/nfvi/*~;
-	erlc -o ebin/common/ebin kube/common/src/*.erl;
-	erlc -o test/test_ebin kube/common/test_src/*.erl;
-	erlc -o ebin/kubelet/ebin kube/kubelet/src/*.erl;
-	erlc -o test/test_ebin kube/kubelet/test_src/*.erl;
-	cp kube/kubelet/src/*.app ebin/kubelet/ebin;
-	cp ebin/common/ebin/* ebin/kubelet/ebin;
-	erl -pa test/test_ebin -pa ebin/kubelet/ebin -s testlet test -sname testlet -setcookie glurk
+	rm -rf ebin/kubelet/* ebin/dns/*;
+	rm -rf test/com_test/*/*.beam  test/com_test/*/*.app;
+	erlc -o test/com_test/kubelet kube/lib/src/*.erl;
+	cp  kube/lib/src/*.app  test/com_test/kubelet;
+	erlc -o test/com_test/kubelet kube/kubelet/src/*.erl;
+	cp  kube/kubelet/src/*.app  test/com_test/kubelet;
+	erlc -o test/com_test/dns kube/dns/src/*.erl;
+	cp  kube/dns/src/*.app  test/com_test/dns;
+	cp test/com_test/kubelet/*.beam test/com_test/dns;
+	cp test/com_test/kubelet/*.app test/com_test/dns;
+	echo ++  build_succeded +++++++++++
 adder_test:
 	rm -rf ebin/*/ebin/*; 
 	rm -rf kube/*/src/*~ kube/*/test_src/*~ kube/*/*.dump kube/*~ kube/*/*~;

@@ -83,7 +83,13 @@ get_instances(WantedServiceStr,DnsList)->
     Reply.
 
 get_instances(WantedServiceStr,WantedVsnStr,DnsList)->
-    Reply=[DnsInfo||DnsInfo<-DnsList, {WantedServiceStr,WantedVsnStr}=:={DnsInfo#dns_info.service_id,DnsInfo#dns_info.vsn}], 
+    Reply =case WantedVsnStr of
+	       latest->
+		   %Glurk should find the latest instead of jyúst returning all ............
+		   [DnsInfo||DnsInfo<-DnsList, {WantedServiceStr}=:={DnsInfo#dns_info.service_id}];
+	       WantedVsnStr->
+		   [DnsInfo||DnsInfo<-DnsList, {WantedServiceStr,WantedVsnStr}=:={DnsInfo#dns_info.service_id,DnsInfo#dns_info.vsn}]
+	   end,
     Reply.
 
 

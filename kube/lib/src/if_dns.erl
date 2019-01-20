@@ -35,20 +35,24 @@
 %% --------------------------------------------------------------------
 
 
-cast_info([{service,ServiceStr,_Vsn},{mfa,M,F,A},{dns,DnsIp,DnsPort},{num_to_send,NumToSend},{sender_info,SenderInfo}])->
+cast_info([{service,ServiceStr,Vsn},{mfa,M,F,A},{dns,DnsIp,DnsPort},{num_to_send,NumToSend},{sender_info,SenderInfo}])->
    % io:format(" ~p~n",[{?MODULE,?LINE,ServiceStr,M,F,A},SenderInfo]),
+    Self=self(),
     Reply=case ServiceStr of
 	      "dns"->
-		  tcp:cast(DnsIp,DnsPort,{M,F,A},SenderInfo);
+		  tcp:cast(DnsIp,DnsPort,{M,F,A},NumToSend,SenderInfo);
 	      _->
-		  Instances=tcp:call(DnsIp,DnsPort,{dns,get_instances,[ServiceStr]},1,SenderInfo),
+		  ListOfPids=spawn_link(tcp,call,[DnsIp,DnsPort,{dns,get_instances,[ServiceStr,Vsn]},Self,10*1000,SenderInfo]),
+		  Instances=do_receive(ListOfPids,1,10*1000,SenderInfo,[]),
 		  case Instances of
-		      []->
+		      [[]]->
+			  io:format(" ~p~n",[{?MODULE,?LINE,'Error','no service found',ServiceStr}]),
 			  {error,[?MODULE,?LINE,'no service found',ServiceStr,SenderInfo]};
 		      {error,Err}->
+			  io:format(" ~p~n",[{?MODULE,?LINE,'Error  ',Err,ServiceStr}]),
 			  {error,[?MODULE,?LINE,Err,SenderInfo]};
 		      %->
-		      [DnsInfo|_]->
+		      [[DnsInfo|_]]->			  
 			  IpAddr=DnsInfo#dns_info.ip_addr,
 			  Port=DnsInfo#dns_info.port,
 			  tcp:cast(IpAddr,Port,{M,F,A},NumToSend,SenderInfo)
@@ -56,20 +60,26 @@ cast_info([{service,ServiceStr,_Vsn},{mfa,M,F,A},{dns,DnsIp,DnsPort},{num_to_sen
 	  end,
     Reply.
 
-cast([{service,ServiceStr,_Vsn},{mfa,M,F,A},{dns,DnsIp,DnsPort},{num_to_send,NumToSend}])->
-   % io:format(" ~p~n",[{?MODULE,?LINE,ServiceStr,M,F,A}]),
+cast([{service,ServiceStr,Vsn},{mfa,M,F,A},{dns,DnsIp,DnsPort},{num_to_send,NumToSend}])->
+  %  io:format(" ~p~n",[{?MODULE,?LINE,ServiceStr,M,F,A}]),
+    Self=self(),
     Reply=case ServiceStr of
 	      "dns"->
-		  tcp:cast(DnsIp,DnsPort,{M,F,A});
+		  tcp:cast(DnsIp,DnsPort,{M,F,A},NumToSend);
 	      _->
-		  Instances=tcp:call(DnsIp,DnsPort,{dns,get_instances,[ServiceStr]}),
+		  ListOfPids=spawn_link(tcp,call,[DnsIp,DnsPort,{dns,get_instances,[ServiceStr,Vsn]},Self,10*1000,no_sender_info]),
+		  Instances=do_receive(ListOfPids,1,10*1000,no_sender_info,[]),
+		%  io:format(" ~p~n",[{?MODULE,?LINE,Instances}]),
 		  case Instances of
-		      []->
+		      [[]]->
+			  io:format(" ~p~n",[{?MODULE,?LINE,'Error','no service found',ServiceStr,Vsn}]),
 			  {error,[?MODULE,?LINE,'no service found',ServiceStr]};
 		      {error,Err}->
+			  io:format(" ~p~n",[{?MODULE,?LINE,'Error  ',Err,ServiceStr}]),
 			  {error,[?MODULE,?LINE,Err]};
 		      %->
-		      [DnsInfo|_]->
+		      [[DnsInfo|_]]->
+	%		  io:format(" ~p~n",[{?MODULE,?LINE,DnsInfo}]),
 			  IpAddr=DnsInfo#dns_info.ip_addr,
 			  Port=DnsInfo#dns_info.port,
 			  tcp:cast(IpAddr,Port,{M,F,A},NumToSend)
@@ -83,31 +93,37 @@ cast([{service,ServiceStr,_Vsn},{mfa,M,F,A},{dns,DnsIp,DnsPort},{num_to_send,Num
 %% Returns: non
 %% --------------------------------------------------------------------
 
-call_info([{service,ServiceStr,Vsn},{mfa,M,F,A},{dns,DnsIp,DnsPort},{num_to_send,NumToSend},{num_to_rec,NumToRec},{time_out,TimeOut},{sender_info,SenderInfo}])->
+call_info([{service,ServiceStr,_Vsn},{mfa,M,F,A},{dns,DnsIp,DnsPort},{num_to_send,NumToSend},{num_to_rec,NumToRec},{timeout,TimeOut},{sender_info,SenderInfo}])->
     % io:format(" ~p~n",[{?MODULE,?LINE,ServiceStr,M,F,A}]),
     Self=self(),
-    ListOfPids=spawn_link(tcp,call,[DnsIp,DnsPort,{dns,get_instances,[ServiceStr,Vsn]},Self,TimeOut,SenderInfo]),
-    Instances=do_receive(ListOfPids,1,TimeOut,SenderInfo,[]),
-    Reply=case Instances of
-	      []->
+    ListOfPids=spawn_link(tcp,call,[DnsIp,DnsPort,{dns,get_instances,[ServiceStr]},Self,TimeOut,SenderInfo]),
+%    ListOfPids=spawn_link(tcp,call,[DnsIp,DnsPort,{dns,get_instances,[ServiceStr,Vsn]},Self,TimeOut,SenderInfo]),
+    ListOfResults=do_receive(ListOfPids,1,TimeOut,no_sender_info,[]),
+    Reply=case ListOfResults of
+	      [[]]->
 		  {error,[?MODULE,?LINE,'no service found',ServiceStr]};
-	      {error,Err}->
+	      [{error,Err}]->
 		  {error,[?MODULE,?LINE,Err]};
-	      Instances->
+	      ListOfResults->
+		  [Instances]=ListOfResults,
+	%	  io:format(" ~p~n",[{?MODULE,?LINE,Instances}]),
 		  call_proc(Self,Instances,{M,F,A},NumToSend,NumToRec,TimeOut,SenderInfo) 	  
 	  end,
     Reply.
 
-call([{service,ServiceStr,Vsn},{mfa,M,F,A},{dns,DnsIp,DnsPort},{num_to_send,NumToSend},{num_to_tec,NumToRec},{time_out,TimeOut}])->
+call([{service,ServiceStr,Vsn},{mfa,M,F,A},{dns,DnsIp,DnsPort},{num_to_send,NumToSend},{num_to_rec,NumToRec},{timeout,TimeOut}])->
     Self=self(),
-    ListOfPids=spawn_link(tcp,call,[DnsIp,DnsPort,{dns,get_instances,[ServiceStr,Vsn]},Self,TimeOut,no_sender_info]),
-    Instances=do_receive(ListOfPids,1,TimeOut,no_sender_info,[]),
-    Reply=case Instances of
-	      []->
+  %  ListOfPids=spawn_link(tcp,call,[DnsIp,DnsPort,{dns,get_instances,[ServiceStr,Vsn]},Self,TimeOut,no_sender_info]),
+    ListOfPids=spawn_link(tcp,call,[DnsIp,DnsPort,{dns,get_instances,[ServiceStr]},Self,TimeOut,no_sender_info]),
+    ListOfResults=do_receive(ListOfPids,1,TimeOut,no_sender_info,[]),
+    Reply=case ListOfResults of
+	      [[]]->
 		  {error,[?MODULE,?LINE,'no service found',ServiceStr]};
-	      {error,Err}->
+	      [{error,Err}]->
 		  {error,[?MODULE,?LINE,Err]};
-	      Instances->
+	      ListOfResults->
+		  [Instances]=ListOfResults,
+	%	  io:format(" ~p~n",[{?MODULE,?LINE,Instances}]),
 		  call_proc(Self,Instances,{M,F,A},NumToSend,NumToRec,TimeOut,no_sender_info)		  
 	  end,
     Reply.
@@ -143,6 +159,7 @@ do_call(_,[],_,_,_,_,Pids)->
 do_call(_,_,_,0,_,_,Pids)->
     Pids;
 do_call(Self,[DnsInfo|T],{M,F,A},NumToSend,TimeOut,SenderInfo,Acc)->
+   %  io:format(" ~p~n",[{?MODULE,?LINE,DnsInfo}]),
     IpAddr=DnsInfo#dns_info.ip_addr,
     Port=DnsInfo#dns_info.port,    
     Pid=spawn_link(tcp,call,[IpAddr,Port,{M,F,A},Self,TimeOut,SenderInfo]),

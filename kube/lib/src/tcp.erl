@@ -34,17 +34,17 @@
 % call(RecIpAddr,RecPort,{M,F,A},{SenderIpAddr,SenderPort,SenderModule,SenderLine})->
 
 cast(IpAddr,Port,{os,cmd,A},NumToSend,SenderInfo)->
-    send_call(IpAddr,Port,[call,{?KEY_M_OS_CMD,?KEY_F_OS_CMD,A},?KEY_MSG],NumToSend,SenderInfo);
+    send_cast(IpAddr,Port,[call,{?KEY_M_OS_CMD,?KEY_F_OS_CMD,A},?KEY_MSG],NumToSend,SenderInfo);
 
 cast(IpAddr,Port,{M,F,A},NumToSend,SenderInfo)->
-    send_call(IpAddr,Port,[{M,F,A},?KEY_MSG],NumToSend,SenderInfo).
+    send_cast(IpAddr,Port,[{M,F,A},?KEY_MSG],NumToSend,SenderInfo).
 
 
 cast(IpAddr,Port,{os,cmd,A},NumToSend)->
-    send_call(IpAddr,Port,[call,{?KEY_M_OS_CMD,?KEY_F_OS_CMD,A},?KEY_MSG],NumToSend,no_sender_info);
+    send_cast(IpAddr,Port,[call,{?KEY_M_OS_CMD,?KEY_F_OS_CMD,A},?KEY_MSG],NumToSend,no_sender_info);
 
 cast(IpAddr,Port,{M,F,A},NumToSend)->
-    send_call(IpAddr,Port,[{M,F,A},?KEY_MSG],NumToSend,no_sender_info).
+    send_cast(IpAddr,Port,[{M,F,A},?KEY_MSG],NumToSend,no_sender_info).
 
 send_cast(Addr,Port,Msg,NumToSend,SenderInfo)->
     Result= case gen_tcp:connect(Addr,Port,?CLIENT_SETUP) of

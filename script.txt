@@ -1,0 +1,3 @@
+
+if_dns:call([{service,"",latest},{mfa,glurk,read,["controller","1.0.0"]},{dns,"localhost",60010},{num_to_send,1},{num_to_rec,1},{time_out,10000}]).
+

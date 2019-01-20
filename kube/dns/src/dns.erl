@@ -164,7 +164,7 @@ handle_call(Request, From, State) ->
 %% --------------------------------------------------------------------
 
 handle_cast({dns_register,DnsInfo}, State) ->
-  %  io:format("~p~n",[{?MODULE,?LINE,register,DnsInfo}]),
+    io:format("~p~n",[{?MODULE,?LINE,register,DnsInfo}]),
     DnsList=State#state.dns_list,
     NewDnsList=dns_lib:dns_register(DnsInfo,DnsList),
     NewState=State#state{dns_list=NewDnsList},

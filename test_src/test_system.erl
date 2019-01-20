@@ -9,7 +9,7 @@
 %% Include files 
 %% --------------------------------------------------------------------
 %%  -include("").
--include_lib("eunit/include/eunit.hrl").
+%-include_lib("eunit/include/eunit.hrl").
 -include("kube/include/tcp.hrl").
 -include("kube/include/dns.hrl").
 %% --------------------------------------------------------------------
@@ -29,22 +29,14 @@
 %% --------------------------------------------------------------------
 %% 1. Initial set up
 %% --------------------------------------------------------------------
-add_app_test()->
-    ok=if_dns:call("controller",controller,add,["app_adder","1.0.0"]),
-    [{{"app_adder","1.0.0"},_}]=if_dns:call("controller",controller,get_all_applications,[]),    
+add(AppId)->
+    if_dns:call([{service,"controller","1.0.0"},{mfa,controller,add,[AppId,"1.0.0"]},{dns,"localhost",60010},{num_to_send,1},{num_to_rec,1},{timeout,5*1000}]),  
     ok.
 
-campaign_1_test()->
-    if_dns:call("controller",controller,campaign,[]),
+remove(AppId)->
+     if_dns:call([{service,"controller","1.0.0"},{mfa,controller,remove,[AppId,"1.0.0"]},{dns,"localhost",60010},{num_to_send,1},{num_to_rec,1},{timeout,5*1000}]),  
     ok.
 
-add_mymath_test()->
-    ok=if_dns:call("controller",controller,add,["mymath","1.0.0"]),
-  %  [{{"app_adder","1.0.0"},_}]=if_dns:call("controller",controller,get_all_applications,[]),    
-    ok.
-campaign_2_test()->
-    if_dns:call("controller",controller,campaign,[]),
-    ok.
 stop_test()->
     if_dns:call("controller",controller,remove,["app_adder","1.0.0"]),
     if_dns:call("controller",controller,remove,["mymath","1.0.0"]),

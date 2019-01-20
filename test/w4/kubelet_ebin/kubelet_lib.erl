@@ -57,6 +57,10 @@ load_start_app(ServiceId,VsnInput,NodeIp,NodePort,State)->
 	      appfile={_,_},
 	      modules=_
 	     }=Artifact,
+    {DnsIp,DnsPort}=State#state.dns_addr,
+    ok=application:set_env(Module,dns_ip_addr,DnsIp),
+    ok=application:set_env(Module,dns_port,DnsPort),
+
     ok=application:set_env(Module,ip_addr,NodeIp),
     ok=application:set_env(Module,port,NodePort),
     ok=application:set_env(Module,service_id,ServiceId),
@@ -64,11 +68,15 @@ load_start_app(ServiceId,VsnInput,NodeIp,NodePort,State)->
     R=application:start(Module).    
 
 load_start_pre_loaded_apps(PreLoadApps,NodeIp,NodePort,State)->
-   % io:format("~p~n",[{?MODULE,?LINE,PreLoadApps}]),
+    io:format("~p~n",[{?MODULE,?LINE,PreLoadApps}]),
     load_start_apps(PreLoadApps,NodeIp,NodePort,[],State).
 load_start_apps([],_,_,StartResult,_)->
     StartResult;
 load_start_apps([catalog|T],NodeIp,NodePort,Acc,State) -> %Has to be pre loaded
+    {dns,DnsIp,DnsPort}=State#state.dns_addr, 
+    ok=application:set_env(catalog,dns_ip_addr,DnsIp),
+    ok=application:set_env(catalog,dns_port,DnsPort),
+
     ok=application:set_env(catalog,ip_addr,NodeIp),
     ok=application:set_env(catalog,port,NodePort),
     ok=application:set_env(catalog,service_id,"catalog"),
@@ -82,15 +90,23 @@ load_start_apps([catalog|T],NodeIp,NodePort,Acc,State) -> %Has to be pre loaded
     load_start_apps(T,NodeIp,NodePort,NewAcc,State);
 
 load_start_apps([repo|T],NodeIp,NodePort,Acc,State) -> %Has to be pre loaded
+ %    io:format(" ~p~n",[{?MODULE, ?LINE,NodeIp,NodePort,Acc,State}]),
+    {dns,DnsIp,DnsPort}=State#state.dns_addr, 
+%    io:format(" ~p~n",[{?MODULE, ?LINE}]), 
+   ok=application:set_env(repo,dns_ip_addr,DnsIp),
+    ok=application:set_env(repo,dns_port,DnsPort),
+
     ok=application:set_env(repo,ip_addr,NodeIp),
     ok=application:set_env(repo,port,NodePort),
     ok=application:set_env(repo,service_id,"repo"),
     EbinDir=?KUBELET_EBIN,
-    Appfile=filename:join(EbinDir,"repo.app"),
+   Appfile=filename:join(EbinDir,"repo.app"),
     {ok,[{application,_,Info}]}=file:consult(Appfile),
     {vsn,Vsn}=lists:keyfind(vsn,1,Info),
     ok=application:set_env(repo,vsn,Vsn),
+
     R=application:start(repo),
+    io:format("start_result ~p~n",[{?MODULE, ?LINE,R}]),
     NewAcc=[{"repo",Vsn,R}|Acc],
     load_start_apps(T,NodeIp,NodePort,NewAcc,State);
 
@@ -99,6 +115,7 @@ load_start_apps([dns|T],NodeIp,NodePort,Acc,State) -> %Has to be pre loaded
     ok=application:set_env(dns,port,NodePort),
     ok=application:set_env(dns,service_id,"dns"),
     EbinDir=?KUBELET_EBIN,
+  %  EbinDir=".",
     Appfile=filename:join(EbinDir,"dns.app"),
     {ok,[{application,_,Info}]}=file:consult(Appfile),
     {vsn,Vsn}=lists:keyfind(vsn,1,Info),
@@ -108,17 +125,23 @@ load_start_apps([dns|T],NodeIp,NodePort,Acc,State) -> %Has to be pre loaded
     load_start_apps(T,NodeIp,NodePort,NewAcc,State);
     
 load_start_apps([Module|T],NodeIp,NodePort,Acc,State) ->
+   io:format("~p~n",[{?MODULE,?LINE,Module,NodeIp,NodePort}]),
     {ok,Artifact}=load_appfiles(atom_to_list(Module),latest,NodeIp,NodePort,State),
+%   io:format("~p~n",[{?MODULE,?LINE,Artifact}]),
     #artifact{service_id=ServiceId,
 	      vsn=Vsn,
 	      appfile={_,_},
 	      modules=_
 	     }=Artifact,
+    {dns,DnsIp,DnsPort}=State#state.dns_addr,
+    ok=application:set_env(Module,dns_ip_addr,DnsIp),
+    ok=application:set_env(Module,dns_port,DnsPort),
     ok=application:set_env(Module,ip_addr,NodeIp),
     ok=application:set_env(Module,port,NodePort),
     ok=application:set_env(Module,service_id,ServiceId),
     ok=application:set_env(Module,vsn,Vsn),
     R=application:start(Module),
+       io:format("~p~n",[{?MODULE,?LINE,R}]),
     NewAcc=[{ServiceId,Vsn,R}|Acc],
     load_start_apps(T,NodeIp,NodePort,NewAcc,State).
 
@@ -133,8 +156,8 @@ stop_unload_app(DnsInfo,State)->
     Artifact=if_dns:call([{service,"repo",latest},{mfa,repo,read_artifact,[ServiceId,Vsn]},
 			  State#state.dns_addr,
 			  {num_to_send,1},
-			  {num_to_tec,1},
-			  {time_out,5*1000}
+			  {num_to_rec,1},
+			  {timeout,5*1000}
 			 ]
 			),
     #artifact{service_id=ServiceId,
@@ -166,15 +189,15 @@ stop_unload_app(DnsInfo,State)->
     if_dns:call([{service,"dns",latest},{mfa,dns,de_dns_register,[DnsInfo]},
 		 State#state.dns_addr,
 		 {num_to_send,1},
-		 {num_to_tec,0},
-		 {time_out, cast}
+		 {num_to_rec,0},
+		 {timeout, cast}
 		]
 	       ),
     if_dns:call([{service,"controller",latest},{mfa,dns,de_dns_register,[DnsInfo]},
 		 State#state.dns_addr,
 		 {num_to_send,1},
-		 {num_to_tec,0},
-		 {time_out, cast}
+		 {num_to_rec,0},
+		 {timeout, cast}
 		]
 	       ),
 
@@ -236,14 +259,14 @@ load_appfiles(ServiceId,VsnInput,NodeIp,NodePort,State)->  % VsnInput Can be lat
     SenderInfo=#sender_info{ip_addr=NodeIp,
 			    port=NodePort,
 			    module=?MODULE,line=?LINE},
-    Artifact=if_dns:call([{service,"repo",latest},{mfa,repo,read_artifact,[ServiceId,VsnInput]},
+    {ok,[Artifact]}=if_dns:call([{service,"repo",latest},{mfa,repo,read_artifact,[ServiceId,VsnInput]},
 			  State#state.dns_addr,
 			  {num_to_send,1},
-			  {num_to_tec,1},
-			  {time_out,5*1000}
+			  {num_to_rec,1},
+			  {timeout,5*1000}
 			 ]
 			),
-   
+ %   io:format("~p~n",[{?MODULE,?LINE,Artifact}]),
     #artifact{service_id=ServiceId,
 	      vsn=Vsn,
 	      appfile={AppFileBaseName,AppBinary},

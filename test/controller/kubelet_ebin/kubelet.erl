@@ -118,15 +118,21 @@ init([]) ->
 			capabilities=Capabilities
 		       },    
 
- %   
- %   rpc:call(node(),kubelet_lib,start_app,[dns,"1.0.0"]),
-   io:format("NodeIp,NodePort Port  ~p~n",[{?MODULE,?LINE,PreLoadApps,NodeIp,NodePort}]),
-    _Result=rpc:call(node(),kubelet_lib,load_start_pre_loaded_apps,[PreLoadApps,NodeIp,NodePort]),
+  %   rpc:call(node(),kubelet_lib,start_app,[dns,"1.0.0"]),
+  
   %  StartedApps=[{ServiceId_X,Vsn_X}||{ServiceId_X,Vsn_X,ok}<-Result],
-     io:format("Port  ~p~n",[{?MODULE,?LINE,NodePort}]),
+   %  io:format("Port  ~p~n",[{?MODULE,?LINE,NodePort}]),
     {ok, LSock} = gen_tcp:listen(NodePort,?SERVER_SETUP),
     timer:sleep(100),
     Workers=init_workers(LSock,MaxWorkers,[]), % Glurk remove?
+
+    State= #state{kubelet_info=KubeletInfo,
+		  lSock=LSock,max_workers=MaxWorkers,
+		  active_workers=0,workers=Workers,dns_list=[],
+		  dns_addr={dns,DnsIp,DnsPort}
+		 },   
+   % io:format("NodeIp,NodePort Port  ~p~n",[{?MODULE,?LINE,PreLoadApps,NodeIp,NodePort}]),
+    _Result=rpc:call(node(),kubelet_lib,load_start_pre_loaded_apps,[PreLoadApps,NodeIp,NodePort,State]),
 
     %------ send info to controller
     
@@ -134,16 +140,12 @@ init([]) ->
 			    port=NodePort,
 			    module=?MODULE,line=?LINE},
     io:format("  ~p~n",[{?MODULE,?LINE}]),
-    rpc:cast(node(),if_dns,call,["controller",controller,node_register,[KubeletInfo],SenderInfo]),
+    if_dns:cast([{service,"controller",latest},{mfa,controller,node_register,[KubeletInfo]},
+		 {dns,DnsIp,DnsPort},{num_to_send,1}]),
     spawn(fun()-> local_heart_beat(?HEARTBEAT_INTERVAL) end), 
 
     io:format("Started Service  ~p~n",[{?MODULE}]),
-    {ok, #state{kubelet_info=KubeletInfo,
-		lSock=LSock,max_workers=MaxWorkers,
-		active_workers=0,workers=Workers,dns_list=[],
-	        dns_addr={dns,DnsIp,DnsPort}
-	       }
-    }.
+    {ok, State}.
 
 %% --------------------------------------------------------------------
 %% Function: handle_call/3
@@ -225,12 +227,17 @@ handle_call({heart_beat}, _From, State) ->
     NodeInfo=State#state.kubelet_info,
     NodeIp=NodeInfo#kubelet_info.ip_addr,
     NodePort=NodeInfo#kubelet_info.port,
-    SenderInfo=#sender_info{ip_addr=NodeIp,
-			    port=NodePort,
-			    module=?MODULE,line=?LINE},
-    [rpc:cast(node(),if_dns,call,["controller",controller,dns_register,[DnsInfo],SenderInfo])||DnsInfo<-NewDnsList],
-    % Register node
-    rpc:cast(node(),if_dns,call,["controller",controller,node_register,[State#state.kubelet_info],SenderInfo]),
+  %  SenderInfo=#sender_info{ip_addr=NodeIp,
+%			    port=NodePort,
+%			    module=?MODULE,line=?LINE},
+  
+  %  [if_dns:cast([{service,"dns",latest},{mfa,dns,dns_register,[DnsInfo]},
+	%	 {dns,DnsIp,DnsPort},{num_to_send,1}])||DnsInfo<-NewDnsList],
+    {dns,DnsIp,DnsPort}=State#state.dns_addr,
+
+%% Glurk hårdkodat "1.0.0" 
+    if_dns:cast([{service,"controller",latest},{mfa,controller,node_register,[State#state.kubelet_info]},
+		 {dns,DnsIp,DnsPort},{num_to_send,1}]),
     NewState=State#state{dns_list=NewDnsList},
     Reply=ok,
    {reply, Reply, NewState};
@@ -314,6 +321,10 @@ handle_info({'DOWN',Ref,process,Pid,normal},  #state{lSock = LSock,active_worker
     NewState=State#state{active_workers=NewActiveWorkers,workers=NewWorkerList},
    % io:format("DOWN  ~p~n",[{?MODULE,?LINE,NewState}]),
     {noreply, NewState};
+
+handle_info({tcp,Port,Bin}, State) ->
+    io:format("unmatched signal ~p~n",[{?MODULE,?LINE,tcp,Port,binary_to_term(Bin)}]),
+    {noreply, State};
 
 handle_info(Info, State) ->
     io:format("unmatched signal ~p~n",[{?MODULE,?LINE,Info}]),

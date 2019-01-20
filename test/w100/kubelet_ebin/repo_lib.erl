@@ -129,6 +129,7 @@ read_artifact(ServiceId,Vsn,DbaseId)->
 	      []->
 		  {error,[?MODULE,?LINE,'Service eexists',ServiceId,Vsn]};
 	      [{{artifact,ServiceId,Vsn},Artifact}]->
+		 % io:format("~p~n",[{?MODULE,?LINE,Artifact}]),
 		  Artifact
 	  end,
     Reply.	      

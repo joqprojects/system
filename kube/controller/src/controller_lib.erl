@@ -11,6 +11,9 @@
 %% --------------------------------------------------------------------
 %% Include files
 %% --------------------------------------------------------------------
+-include("kube/controller/src/controller_local.hrl").
+
+
 -include("kube/include/tcp.hrl").
 -include("kube/include/dns.hrl").
 -include("kube/include/dns_data.hrl").
@@ -40,9 +43,8 @@ stop_services([{ServiceId,Vsn}|T],DnsList)->
 						    {ServiceId,Vsn}=:={X_Id,X_Vsn}],
   %  io:format("ListWithIp,Vsn ~p~n",[{time(),?MODULE,?LINE,ListWithIp}]),
 
-   R= [{IpAddr,Port,ServiceId,Vsn,rpc:cast(node(),tcp,call,[IpAddr,Port,{kubelet,stop_service,[ServiceId]}])}||{IpAddr,Port,ServiceId,Vsn}<-ListWithIp],
+   R= [{IpAddr,Port,ServiceId,Vsn,tcp:cast(IpAddr,Port,{kubelet,stop_service,[ServiceId]},1)}||{IpAddr,Port,ServiceId,Vsn}<-ListWithIp],
   %  io:format("result stop_service ~p~n",[{?MODULE,?LINE,R}]),
-
     stop_services(T,DnsList).
 						  
 %% --------------------------------------------------------------------
@@ -50,20 +52,20 @@ stop_services([{ServiceId,Vsn}|T],DnsList)->
 %% Description:
 %% Returns: non
 %% --------------------------------------------------------------------
-needed_services(ApplicationList)->
-    needed_services(ApplicationList,[]).
+needed_services(ApplicationList,State)->
+    needed_services(ApplicationList,State,[]).
 
-needed_services([],NeededServices)->
+needed_services([],_,NeededServices)->
     NeededServices;
-needed_services([{{AppId,Vsn},JoscaFile}|T],Acc)->
+needed_services([{{AppId,Vsn},JoscaFile}|T],State,Acc)->
     {dependencies,ServiceList}=lists:keyfind(dependencies,1,JoscaFile),
-    NewAcc=check_services(ServiceList,Acc),
-    needed_services(T,NewAcc).
+    NewAcc=check_services(ServiceList,State,Acc),
+    needed_services(T,State,NewAcc).
 
-check_services([],Acc)->
+check_services([],_,Acc)->
     Acc;
-check_services([{Id,Vsn}|T],Acc) ->
-    NewAcc=case josca:start_order(Id,Vsn) of
+check_services([{Id,Vsn}|T],State,Acc) ->
+    NewAcc=case josca:start_order(Id,Vsn,State) of
 	       {error,Err}->
 		   io:format("error~p~n",[{?MODULE,?LINE,Err}]),
 		   Acc;
@@ -75,7 +77,7 @@ check_services([{Id,Vsn}|T],Acc) ->
 			   lists:append(Services,Acc)
 		   end
 	   end,
-    check_services(T,NewAcc).
+    check_services(T,State,NewAcc).
 
 missing_services(NeededServices,DnsList)->
     AvailibleServices=[{DnsInfo#dns_info.service_id,DnsInfo#dns_info.vsn}||DnsInfo<-DnsList],
@@ -83,15 +85,19 @@ missing_services(NeededServices,DnsList)->
 	       lists:member({Id,Vsn},AvailibleServices)=:=false].
 
 
-start_services([],Nodes)->
+start_services([],Nodes,State)->
     ok;
-start_services([{ServiceId,Vsn}|T],Nodes)->
+start_services([{ServiceId,Vsn}|T],Nodes,State)->
  %   io:format("~p~n",[{?MODULE,?LINE,ServicesId,Vsn,Nodes}]),
-    case if_dns:call("catalog",catalog,read,[ServiceId,Vsn]) of
-	{error,Err}->
-	    io:format("~p~n",[{?MODULE,?LINE,'error',Err}]);
-	{ok,_,JoscaInfo}->
-%	    io:format("~p~n",[{?MODULE,?LINE,JoscaInfo}]),
+    {dns,DnsIp,DnsPort}=State#state.dns_addr,
+    R= if_dns:cast([{service,"catalog",latest},{mfa,catalog,read,[ServiceId,Vsn]},
+		    {dns,DnsIp,DnsPort},{num_to_send,1},{num_to_rec,1},{timeout,10*1000}]),
+    case R of
+	[{error,Err}]->
+	    NewState=State,
+	    {error,[?MODULE,?LINE,ServiceId,Vsn,Err]};
+	[{ok,_,JoscaInfo}]->
+	 %	    io:format("~p~n",[{?MODULE,?LINE,JoscaInfo}]),
 	    {zone,WantedZone}=lists:keyfind(zone,1,JoscaInfo),
 	    {needed_capabilities,WantedCapabilities}=lists:keyfind(needed_capabilities,1,JoscaInfo),
 	    NodesFullfilledNeeds=get_nodes_fullfills_needs(WantedZone,WantedCapabilities,Nodes),
@@ -104,7 +110,7 @@ start_services([{ServiceId,Vsn}|T],Nodes)->
 		    io:format("~p~n",[{?MODULE,?LINE,'Service start result =',R,ServiceId,Vsn}])
 	    end
     end,
-    start_services(T,Nodes).
+    start_services(T,Nodes,State).
 
 %% --------------------------------------------------------------------
 %% Function: 
@@ -115,9 +121,7 @@ schedule_start(ServicesId,Vsn,NodesFullfilledNeeds)->
     [KubeleteInfo|_]=NodesFullfilledNeeds,
     IpAddr=KubeleteInfo#kubelet_info.ip_addr,
     Port=KubeleteInfo#kubelet_info.port,
-
-    R=tcp:call(IpAddr,Port,{kubelet,start_service,[ServicesId,Vsn]}),
-    R.
+    tcp:cast(IpAddr,Port,{kubelet,start_service,[ServicesId,Vsn]},1).
 
 
 
