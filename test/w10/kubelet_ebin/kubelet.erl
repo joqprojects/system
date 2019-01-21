@@ -184,7 +184,7 @@ handle_call({start_service,ServiceId,Vsn},_From, State) ->
     #kubelet_info{ip_addr=MyIp,port=Port}=State#state.kubelet_info,   
     Reply= case [DnsInfo||DnsInfo<-DnsList,DnsInfo#dns_info.service_id =:=ServiceId] of
 	      []->
-		   case rpc:call(node(),kubelet_lib,load_start_app,[ServiceId,Vsn,MyIp,Port]) of
+		   case rpc:call(node(),kubelet_lib,load_start_app,[ServiceId,Vsn,MyIp,Port,State]) of
 		       ok->
 			   ok;
 		       Err->
@@ -205,7 +205,7 @@ handle_call({stop_service,ServiceId}, _From, State) ->
 	       [DnsInfo]->   
 		   NewDnsList=lists:delete(DnsInfo,State#state.dns_list),
 		   NewState=State#state{dns_list=NewDnsList},
-		   case rpc:call(node(),kubelet_lib,stop_unload_app,[DnsInfo]) of
+		   case rpc:call(node(),kubelet_lib,stop_unload_app,[DnsInfo,State]) of
 		       ok->
 			   ok;
 		       Err->

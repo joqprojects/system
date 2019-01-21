@@ -50,7 +50,8 @@ send_cast(Addr,Port,Msg,NumToSend,SenderInfo)->
     Result= case gen_tcp:connect(Addr,Port,?CLIENT_SETUP) of
 		{ok,Socket}->
 	  %  io:format("ok Socket  ~p~n",[{?MODULE,?LINE,Addr,Port,Msg,inet:socknames(Socket)}]),
-		    gen_tcp:send(Socket,term_to_binary(Msg));
+		    gen_tcp:send(Socket,term_to_binary(Msg)),
+		    {?MODULE,?LINE,cast,Addr,Port,Msg,NumToSend};
 		{error,Err} ->
 		    io:format("cast error ~p~n",[{?MODULE,?LINE,Err,Addr,Port,Msg,SenderInfo}]),
 		    {error,[{?MODULE,?LINE,Err,Addr,Port,Msg,SenderInfo}]}

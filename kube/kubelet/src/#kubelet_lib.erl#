@@ -187,7 +187,7 @@ stop_unload_app(DnsInfo,State)->
     Appfile=filename:join(Ebin,AppFileBaseName),
     ok=file:delete(Appfile),
     DeleteResult=[file:delete(filename:join(Ebin,ModuleName))||{ModuleName,_}<-Modules],
-    if_dns:cast([{service,"dns",latest},{mfa,dns,de_dns_register,[DnsInfo]},
+    if_dns:cast([{service,"dns",latest},{mfa,dns,de_dns_de_register,[DnsInfo]},
 		 State#state.dns_addr,
 		 {num_to_send,1}
 		]

@@ -209,8 +209,8 @@ handle_call({remove,AppId,Vsn}, _From, State)->
 		%  io:format("AllServices ~p~n",[{time(),AllServices,?MODULE,?LINE}]),
 		  AppIdServices=rpc:call(node(),controller_lib,needed_services,[[{{AppId,Vsn},JoscaInfo}],State]),
 		%  io:format("AppIdServices ~p~n",[{time(),AppIdServices,?MODULE,?LINE}]),
-		  ServicesToStop=[{ServiceId,Vsn}||{ServiceId,Vsn}<-AppIdServices,
-						   false==lists:member({ServiceId,Vsn},AllServices)],
+		  ServicesToStop=[{X_ServiceId,X_Vsn}||{X_ServiceId,X_Vsn}<-AppIdServices,
+						   false==lists:member({X_ServiceId,X_Vsn},AllServices)],
 		 % io:format("ServicesToStop ~p~n",[{time(),ServicesToStop,?MODULE,?LINE}]),
 		  rpc:call(node(),controller_lib,stop_services,[ServicesToStop,State#state.dns_list]),
 		  NewState=State#state{application_list=NewAppList},
@@ -297,7 +297,7 @@ handle_cast({campaign}, State) ->
 	MissingServices->
 	    io:format("MissingServices ~p~n",[{date(),time(),MissingServices}])
     end,
-    rpc:call(node(),controller_lib,start_services,[MissingServices,State#state.node_list]),
+    rpc:call(node(),controller_lib,start_services,[MissingServices,State#state.node_list,State]),
     {noreply, State};
 
 
@@ -325,7 +325,7 @@ handle_cast({de_dns_register,DnsInfo}, State) ->
     {noreply, NewState};
 
 handle_cast({node_register,KubeletInfo}, State) ->
-    io:format("node_register ~p~n",[{?MODULE,?LINE,KubeletInfo}]),
+ %   io:format("node_register ~p~n",[{?MODULE,?LINE,KubeletInfo}]),
     Service=KubeletInfo#kubelet_info.service_id,
     Ip=KubeletInfo#kubelet_info.ip_addr,
     P=KubeletInfo#kubelet_info.port,
@@ -354,7 +354,7 @@ handle_cast({de_node_register,KubeletInfo}, State) ->
     {noreply, NewState};
 
 handle_cast(Msg, State) ->
-    io:format("unmatched match cast ~p~n",[{time(),?MODULE,?LINE,Msg}]),
+ %   io:format("unmatched match cast ~p~n",[{time(),?MODULE,?LINE,Msg}]),
   %  if_log:call(State#state.dns_info,error,[?MODULE,?LINE,'unmatched signal',Msg]),
     {noreply, State}.
 
@@ -366,11 +366,11 @@ handle_cast(Msg, State) ->
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
 handle_info({tcp,Port,Bin}, State) ->
-    io:format("unmatched signal ~p~n",[{?MODULE,?LINE,tcp,Port,binary_to_term(Bin)}]),
+  %  io:format("unmatched signal ~p~n",[{?MODULE,?LINE,tcp,Port,binary_to_term(Bin)}]),
     {noreply, State};
 
 handle_info(Info, State) ->
-    io:format("unmatched match info ~p~n",[{time(),?MODULE,?LINE,Info}]),
+   % io:format("unmatched match info ~p~n",[{time(),?MODULE,?LINE,Info}]),
    % if_log:call(State#state.dns_info,error,[?MODULE,?LINE,'unmatched signal',Info]),
     {noreply, State}.
 

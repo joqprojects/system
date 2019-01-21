@@ -10,6 +10,8 @@
 %% --------------------------------------------------------------------
 %% Include files
 %% --------------------------------------------------------------------
+-include("services/subtract_100/src/subtract_local.hrl").
+
 -include("kube/include/tcp.hrl").
 -include("kube/include/dns.hrl").
 -include("kube/include/data.hrl").
@@ -20,7 +22,7 @@
 %% Key Data structures
 %% 
 %% --------------------------------------------------------------------
--record(state, {dns_info}).
+
 
 %% --------------------------------------------------------------------
 
@@ -91,17 +93,23 @@ init([]) ->
     {ok,Port}=application:get_env(port),
     {ok,ServiceId}=application:get_env(service_id),
     {ok,Vsn}=application:get_env(vsn),
-    MyDnsInfo=#dns_info{time_stamp="not_initiaded_time_stamp",
+    {ok,DnsIp}=application:get_env(dns_ip_addr),
+    {ok,DnsPort}=application:get_env(dns_port),
+
+    DnsInfo=#dns_info{time_stamp="not_initiaded_time_stamp",
 			service_id = ServiceId,
 			vsn = Vsn,
 			ip_addr=MyIp,
 			port=Port
 		       },
+    if_dns:cast([{service,"dns",latest},{mfa,dns,dns_register,[DnsInfo]},
+		 {dns,DnsIp,DnsPort},{num_to_send,1}]),
+    if_dns:cast([{service,"controller",latest},{mfa,controller,dns_register,[DnsInfo]},
+		 {dns,DnsIp,DnsPort},{num_to_send,1}]),
+    rpc:cast(node(),kubelet,dns_register,[DnsInfo]),
     spawn(fun()-> local_heart_beat(?HEARTBEAT_INTERVAL) end), 
-    rpc:cast(node(),if_dns,call,["controller",controller,dns_register,[MyDnsInfo]]),
-    rpc:cast(node(),if_dns,call,["dns",dns,dns_register,[MyDnsInfo]]),
-    rpc:cast(node(),kubelet,dns_register,[MyDnsInfo]),
-    {ok, #state{dns_info=MyDnsInfo}}.   
+     io:format("Service ~p~n",[{?MODULE, 'started ',?LINE}]),
+    {ok, #state{dns_info=DnsInfo,dns_addr={dns,DnsIp,DnsPort}}}.   
     
 %% --------------------------------------------------------------------
 %% Function: handle_call/3
@@ -120,8 +128,13 @@ handle_call({sub,A,B}, _From, State) ->
 
 handle_call({heart_beat}, _From, State) ->
     DnsInfo=State#state.dns_info,
-    if_dns:call("dns",dns,dns_register,[DnsInfo]),
+    {dns,DnsIp,DnsPort}=State#state.dns_addr,
+    if_dns:cast([{service,"dns",latest},{mfa,dns,dns_register,[DnsInfo]},
+		 {dns,DnsIp,DnsPort},{num_to_send,1}]),
+    if_dns:cast([{service,"controller",latest},{mfa,controller,dns_register,[DnsInfo]},
+		 {dns,DnsIp,DnsPort},{num_to_send,1}]),
     rpc:cast(node(),kubelet,dns_register,[DnsInfo]),
+   % if_dns:call("contoller",controller,controller_register,[DnsInfo]),
     Reply=ok,
    {reply, Reply, State};
     

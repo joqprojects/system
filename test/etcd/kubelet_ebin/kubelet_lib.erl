@@ -57,7 +57,7 @@ load_start_app(ServiceId,VsnInput,NodeIp,NodePort,State)->
 	      appfile={_,_},
 	      modules=_
 	     }=Artifact,
-    {DnsIp,DnsPort}=State#state.dns_addr,
+    {dns,DnsIp,DnsPort}=State#state.dns_addr,
     ok=application:set_env(Module,dns_ip_addr,DnsIp),
     ok=application:set_env(Module,dns_port,DnsPort),
 
@@ -153,13 +153,14 @@ load_start_apps([Module|T],NodeIp,NodePort,Acc,State) ->
 stop_unload_app(DnsInfo,State)->
     
     #dns_info{service_id=ServiceId,vsn=Vsn}=DnsInfo,
-    Artifact=if_dns:call([{service,"repo",latest},{mfa,repo,read_artifact,[ServiceId,Vsn]},
+     {ok,[Artifact]}=if_dns:call([{service,"repo",latest},{mfa,repo,read_artifact,[ServiceId,Vsn]},
 			  State#state.dns_addr,
 			  {num_to_send,1},
 			  {num_to_rec,1},
 			  {timeout,5*1000}
 			 ]
 			),
+  
     #artifact{service_id=ServiceId,
 	      vsn=Vsn,
 	      appfile={AppFileBaseName,_},
@@ -186,18 +187,14 @@ stop_unload_app(DnsInfo,State)->
     Appfile=filename:join(Ebin,AppFileBaseName),
     ok=file:delete(Appfile),
     DeleteResult=[file:delete(filename:join(Ebin,ModuleName))||{ModuleName,_}<-Modules],
-    if_dns:call([{service,"dns",latest},{mfa,dns,de_dns_register,[DnsInfo]},
+    if_dns:cast([{service,"dns",latest},{mfa,dns,de_dns_register,[DnsInfo]},
 		 State#state.dns_addr,
-		 {num_to_send,1},
-		 {num_to_rec,0},
-		 {timeout, cast}
+		 {num_to_send,1}
 		]
 	       ),
-    if_dns:call([{service,"controller",latest},{mfa,dns,de_dns_register,[DnsInfo]},
+    if_dns:cast([{service,"controller",latest},{mfa,dns,de_dns_register,[DnsInfo]},
 		 State#state.dns_addr,
-		 {num_to_send,1},
-		 {num_to_rec,0},
-		 {timeout, cast}
+		 {num_to_send,1}
 		]
 	       ),
 

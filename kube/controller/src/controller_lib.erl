@@ -43,7 +43,7 @@ stop_services([{ServiceId,Vsn}|T],DnsList)->
 						    {ServiceId,Vsn}=:={X_Id,X_Vsn}],
   %  io:format("ListWithIp,Vsn ~p~n",[{time(),?MODULE,?LINE,ListWithIp}]),
 
-   R= [{IpAddr,Port,ServiceId,Vsn,tcp:cast(IpAddr,Port,{kubelet,stop_service,[ServiceId]},1)}||{IpAddr,Port,ServiceId,Vsn}<-ListWithIp],
+   R= [{IpAddr,Port,X_ServiceId,X_Vsn,tcp:cast(IpAddr,Port,{kubelet,stop_service,[X_ServiceId]},1)}||{IpAddr,Port,X_ServiceId,X_Vsn}<-ListWithIp],
   %  io:format("result stop_service ~p~n",[{?MODULE,?LINE,R}]),
     stop_services(T,DnsList).
 						  
@@ -88,27 +88,33 @@ missing_services(NeededServices,DnsList)->
 start_services([],Nodes,State)->
     ok;
 start_services([{ServiceId,Vsn}|T],Nodes,State)->
- %   io:format("~p~n",[{?MODULE,?LINE,ServicesId,Vsn,Nodes}]),
+    io:format("~p~n",[{?MODULE,?LINE,ServiceId,Vsn,Nodes}]),
     {dns,DnsIp,DnsPort}=State#state.dns_addr,
-    R= if_dns:cast([{service,"catalog",latest},{mfa,catalog,read,[ServiceId,Vsn]},
+    R= if_dns:call([{service,"catalog",latest},{mfa,catalog,read,[ServiceId,Vsn]},
 		    {dns,DnsIp,DnsPort},{num_to_send,1},{num_to_rec,1},{timeout,10*1000}]),
+
+    io:format("~p~n",[{?MODULE,?LINE,R}]),
     case R of
 	[{error,Err}]->
 	    NewState=State,
 	    {error,[?MODULE,?LINE,ServiceId,Vsn,Err]};
-	[{ok,_,JoscaInfo}]->
+	{ok,[{ok,_,JoscaInfo}]}->
 	 %	    io:format("~p~n",[{?MODULE,?LINE,JoscaInfo}]),
 	    {zone,WantedZone}=lists:keyfind(zone,1,JoscaInfo),
 	    {needed_capabilities,WantedCapabilities}=lists:keyfind(needed_capabilities,1,JoscaInfo),
 	    NodesFullfilledNeeds=get_nodes_fullfills_needs(WantedZone,WantedCapabilities,Nodes),
-	 %   io:format("~p~n",[{?MODULE,?LINE,ServiceId,WantedZone,WantedCapabilities,'=>>',NodesFullfilledNeeds}]),
+	    io:format("~p~n",[{?MODULE,?LINE,ServiceId,WantedZone,WantedCapabilities,'=>>',NodesFullfilledNeeds}]),
 	    case NodesFullfilledNeeds of
 		[]->
 		    io:format("~p~n",[{?MODULE,?LINE,'error no availible nodes'}]);
 		NodesFullfilledNeeds->
-		    R=schedule_start(ServiceId,Vsn,NodesFullfilledNeeds),
+		    io:format("~p~n",[{?MODULE,?LINE,NodesFullfilledNeeds }]),
+		    R=schedule_start(ServiceId,Vsn,NodesFullfilledNeeds,State),
 		    io:format("~p~n",[{?MODULE,?LINE,'Service start result =',R,ServiceId,Vsn}])
-	    end
+	    end;
+	Err->
+	    io:format("Error ~p~n",[{?MODULE,?LINE,Err}]),
+	     {error,[?MODULE,?LINE,ServiceId,Vsn,Err]}
     end,
     start_services(T,Nodes,State).
 
@@ -117,11 +123,23 @@ start_services([{ServiceId,Vsn}|T],Nodes,State)->
 %% Description:
 %% Returns: non
 %% --------------------------------------------------------------------
-schedule_start(ServicesId,Vsn,NodesFullfilledNeeds)->
+schedule_start(ServicesId,Vsn,NodesFullfilledNeeds,State)->
     [KubeleteInfo|_]=NodesFullfilledNeeds,
+    io:format("~p~n",[{?MODULE,?LINE,KubeleteInfo }]),
     IpAddr=KubeleteInfo#kubelet_info.ip_addr,
     Port=KubeleteInfo#kubelet_info.port,
-    tcp:cast(IpAddr,Port,{kubelet,start_service,[ServicesId,Vsn]},1).
+    Self=self(),
+    io:format("~p~n",[{?MODULE,?LINE }]),
+    Pid=spawn(tcp,call,[IpAddr,Port,{kubelet,start_service,[ServicesId,Vsn]},Self,4*1000,no_sender_info]),
+    receive
+	{Pid,tcp_call_ack,Result}->
+	    ok
+    after 4*1000 ->
+	    Result={error,[?MODULE,?LINE,timeout,'start service  ',ServicesId,Vsn]}
+    end,
+    io:format("~p~n",[{?MODULE,?LINE,Result}]),
+    Result.
+
 
 
 
@@ -140,7 +158,7 @@ get_nodes_fullfills_needs(WantedZone,WantedCapabilities,AvailibleNodes)->
 			[Node||Node<-AvailibleNodes,
 				Node#kubelet_info.zone=:=Zone]
 		end,
-   % io:format("RightZone  ~p~n",[{?MODULE,?LINE,RightZone}]),    
+  %  io:format("RightZone  ~p~n",[{?MODULE,?LINE,RightZone}]),    
     NodesFullfilledNeeds=case WantedCapabilities of
 			     []->
 				 RightZone;
