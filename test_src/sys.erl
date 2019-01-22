@@ -4,7 +4,7 @@
 %%%  
 %%% Created : 10 dec 2012
 %%% -------------------------------------------------------------------
--module(test_system).
+-module(sys).
 %% --------------------------------------------------------------------
 %% Include files 
 %% --------------------------------------------------------------------
@@ -29,8 +29,21 @@
 %% --------------------------------------------------------------------
 %% 1. Initial set up
 %% --------------------------------------------------------------------
+a()->
+    if_dns:call([{service,"controller","1.0.0"},{mfa,controller,add,["mymath","1.0.0"]},{dns,"localhost",60010},{num_to_send,1},{num_to_rec,1},{timeout,5*1000}]),  
+    timer:sleep(2*60*1000),
+    if_dns:call([{service,"controller","1.0.0"},{mfa,controller,remove,["mymath","1.0.0"]},{dns,"localhost",60010},{num_to_send,1},{num_to_rec,1},{timeout,5*1000}]),  
+    ok.
+
+add()->
+    if_dns:call([{service,"controller","1.0.0"},{mfa,controller,add,["mymath","1.0.0"]},{dns,"localhost",60010},{num_to_send,1},{num_to_rec,1},{timeout,5*1000}]),  
+    ok.
 add(AppId)->
     if_dns:call([{service,"controller","1.0.0"},{mfa,controller,add,[AppId,"1.0.0"]},{dns,"localhost",60010},{num_to_send,1},{num_to_rec,1},{timeout,5*1000}]),  
+    ok.
+
+remove()->
+     if_dns:call([{service,"controller","1.0.0"},{mfa,controller,remove,["mymath","1.0.0"]},{dns,"localhost",60010},{num_to_send,1},{num_to_rec,1},{timeout,5*1000}]),  
     ok.
 
 remove(AppId)->

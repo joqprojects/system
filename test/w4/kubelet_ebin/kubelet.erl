@@ -371,7 +371,9 @@ init_workers(_,0,Workers)->
 init_workers(LSock,N,Workers)->
     ParentPid=self(),
     {Pid,Ref}=spawn_monitor(fun()->start_worker(ParentPid,LSock) end),
+  %  Pid=spawn(fun()->start_worker(ParentPid,LSock) end),
     NewWorkers=[{Pid,Ref}|Workers],
+ %   NewWorkers=[{Pid}|Workers],
     init_workers(LSock,N-1,NewWorkers).
     
 

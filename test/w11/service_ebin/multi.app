@@ -1,12 +1,12 @@
 %% This is the application resource file (.app file) for the 'base'
 %% application.
-{application, adder,
-[{description, "adder  " },
+{application, multi,
+[{description, "multi  " },
 {vsn, "1.0.0" },
 {modules, 
-	  [adder_app,adder_sup,adder,adder_lib]},
-{registered,[adder]},
+	  [multi_app,multi_sup,multi,multi_lib]},
+{registered,[multi]},
 {applications, [kernel,stdlib]},
-{mod, {adder_app,[]}},
+{mod, {multi_app,[]}},
 {start_phases, []}
 ]}.

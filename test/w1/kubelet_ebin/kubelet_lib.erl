@@ -192,7 +192,7 @@ stop_unload_app(DnsInfo,State)->
 		 {num_to_send,1}
 		]
 	       ),
-    if_dns:cast([{service,"controller",latest},{mfa,dns,de_dns_register,[DnsInfo]},
+    if_dns:cast([{service,"controller",latest},{mfa,controller,de_dns_register,[DnsInfo]},
 		 State#state.dns_addr,
 		 {num_to_send,1}
 		]
